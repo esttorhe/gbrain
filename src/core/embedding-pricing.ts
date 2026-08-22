@@ -74,6 +74,8 @@ export const EMBEDDING_PRICING: Record<string, EmbeddingPricing> = {
   // Perplexity (https://docs.perplexity.ai/getting-started/pricing, verified 2026-07-28)
   'perplexity:pplx-embed-v1-0.6b': { pricePerMTok: 0.004 },
   'perplexity:pplx-embed-v1-4b':   { pricePerMTok: 0.03 },
+  // Google (https://developers.googleblog.com/gemini-embedding-available-gemini-api/, verified 2026-08-21)
+  'google:gemini-embedding-001':   { pricePerMTok: 0.15 },
 };
 
 export type PriceLookupResult =
