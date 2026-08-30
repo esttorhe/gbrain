@@ -43,7 +43,11 @@ export interface RecentTranscript {
   summary: string;
 }
 
-const DATE_RE = /^(\d{4}-\d{2}-\d{2})/;
+// Accepts BOTH dashed (`YYYY-MM-DD`) and undashed (`YYYYMMDD`) prefixes.
+// See transcript-discovery.ts::inferDateFromBasename for the shared rationale:
+// meeting corpora use YYYYMMDDHHMM basenames without dashes, and the older
+// dashed-only regex hid the source date on every listing.
+const DATE_RE = /^(\d{4})-?(\d{2})-?(\d{2})/;
 const FULL_READ_CAP = 100 * 1024;
 const SUMMARY_HEAD_CHARS = 250;
 
@@ -114,9 +118,12 @@ export async function listRecentTranscripts(
 
     const name = basename(c.path);
     const dateMatch = DATE_RE.exec(name);
+    // Normalize to `YYYY-MM-DD` so downstream consumers get a canonical shape
+    // regardless of whether the filename used dashes.
+    const date = dateMatch ? `${dateMatch[1]}-${dateMatch[2]}-${dateMatch[3]}` : null;
     out.push({
       path: name,
-      date: dateMatch ? dateMatch[1] : null,
+      date,
       mtime: new Date(c.mtimeMs).toISOString(),
       length: c.size,
       summary: summary ? buildSummary(raw) : raw.slice(0, FULL_READ_CAP),

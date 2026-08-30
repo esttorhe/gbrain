@@ -58,7 +58,11 @@ export interface ComputeEffectiveDateOpts {
 const FILENAME_FIRST_PREFIXES = ['daily/', 'meetings/'];
 
 const MIN_DATE_MS = Date.UTC(1990, 0, 1);
-const FILENAME_DATE_RE = /^(\d{4}-\d{2}-\d{2})/;
+// Accepts BOTH dashed (`YYYY-MM-DD`) and undashed (`YYYYMMDD`) prefixes.
+// See transcript-discovery.ts::inferDateFromBasename for the shared rationale:
+// meeting corpora use YYYYMMDDHHMM basenames without dashes, and the older
+// dashed-only regex left every such file with a null filename-date signal.
+const FILENAME_DATE_RE = /^(\d{4})-?(\d{2})-?(\d{2})/;
 
 function maxDateMs(): number {
   // NOW + 1 year, computed at call time so tests with a mocked Date.now()
@@ -102,7 +106,10 @@ function extractFilenameDate(filename: string | null | undefined): Date | null {
   if (!filename) return null;
   const m = filename.match(FILENAME_DATE_RE);
   if (!m) return null;
-  return validateInRange(parseDateLoose(m[1]));
+  // Normalize to `YYYY-MM-DD` so parseDateLoose sees a canonical form
+  // regardless of whether the filename used dashes.
+  const normalized = `${m[1]}-${m[2]}-${m[3]}`;
+  return validateInRange(parseDateLoose(normalized));
 }
 
 function hasFilenameFirstPrefix(slug: string): boolean {

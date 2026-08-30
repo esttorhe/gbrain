@@ -50,8 +50,34 @@ export interface DiscoverOpts {
   bypassGuard?: boolean;
 }
 
-const DATE_RE = /^(\d{4}-\d{2}-\d{2})/;
+/**
+ * Filename date prefix. Accepts BOTH dashed (`YYYY-MM-DD`) and undashed
+ * (`YYYYMMDD`) forms so YYYYMMDDHHMM-style meeting corpora surface a date
+ * for `--date`/`--from`/`--to` filtering and for the synthesize phase's
+ * `dateHint` slug. `inferDateFromBasename` normalizes the captured value
+ * to the dashed `YYYY-MM-DD` shape every downstream consumer expects.
+ */
+const DATE_RE = /^(\d{4})-?(\d{2})-?(\d{2})/;
 const WORD_BOUNDARY_HEURISTIC = /^[a-zA-Z][a-zA-Z0-9_-]*$/;
+
+/**
+ * Extract a normalized `YYYY-MM-DD` date from a filename basename.
+ *
+ * The corpus historically included two naming conventions in the same tree:
+ *   - dashed: `2026-08-24 Claw Daily.md`
+ *   - undashed: `20260824074341 Claw Daily.md`
+ *
+ * Prior to this helper, only the dashed form matched, so `--date`/`--from`/`--to`
+ * silently no-op'd against undashed-prefixed corpora and every synth page fell
+ * back to today() as its slug date. Widening `DATE_RE` alone would leave the
+ * captured value undashed at some callsites; normalizing here keeps every
+ * downstream comparison (`isInDateRange`, `dateHint`) working with a single
+ * canonical shape.
+ */
+export function inferDateFromBasename(baseName: string): string | null {
+  const m = DATE_RE.exec(baseName);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
 
 /**
  * Self-consumption guard: identity-marker check against `dream_generated: true`
@@ -232,8 +258,7 @@ export function discoverTranscripts(opts: DiscoverOpts): DiscoveredTranscript[] 
     for (const filePath of listTextFiles(dir)) {
       const ext = filePath.endsWith('.md') ? '.md' : '.txt';
       const baseName = basename(filePath, ext);
-      const dateMatch = DATE_RE.exec(baseName);
-      const inferredDate = dateMatch ? dateMatch[1] : null;
+      const inferredDate = inferDateFromBasename(baseName);
       if (!isInDateRange(inferredDate, opts)) continue;
 
       let content: string;
@@ -292,12 +317,11 @@ export function readSingleTranscript(
   if (matchesAnyExclude(content, excludeRes)) return null;
   const ext = filePath.endsWith('.md') ? '.md' : '.txt';
       const baseName = basename(filePath, ext);
-  const dateMatch = DATE_RE.exec(baseName);
   return {
     filePath,
     contentHash: hashContent(content),
     content,
     basename: baseName,
-    inferredDate: dateMatch ? dateMatch[1] : null,
+    inferredDate: inferDateFromBasename(baseName),
   };
 }
