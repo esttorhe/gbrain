@@ -1373,7 +1373,9 @@ async function extractForSlugs(
 
   if (!jsonMode) {
     const label = dryRun ? '(dry run) would create' : 'created';
-    console.log(`Incremental extract: ${label} ${linksCreated} link(s), ${timelineCreated} timeline entries from ${pagesProcessed}/${slugs.length} page(s)`);
+    // Stderr (not stdout): progress/diagnostics never pollute the data stream.
+    // See src/commands/dream.ts's drain adapter for the same discipline.
+    process.stderr.write(`Incremental extract: ${label} ${linksCreated} link(s), ${timelineCreated} timeline entries from ${pagesProcessed}/${slugs.length} page(s)\n`);
   }
 
   return { links_created: linksCreated, timeline_created: timelineCreated, pages: pagesProcessed };
@@ -1826,12 +1828,13 @@ async function extractLinksFromDB(
 
   if (!jsonMode) {
     const label = dryRun ? '(dry run) would create' : 'created';
-    console.log(`Links: ${label} ${created} from ${processed} pages (db source)`);
+    // Stderr: progress/diagnostics, never JSON-consumer data.
+    process.stderr.write(`Links: ${label} ${created} from ${processed} pages (db source)\n`);
     if (skippedMissingTarget > 0) {
-      console.log(`Skipped ${skippedMissingTarget} candidate(s) whose target page doesn't exist (references to non-pages are never persisted).`);
+      process.stderr.write(`Skipped ${skippedMissingTarget} candidate(s) whose target page doesn't exist (references to non-pages are never persisted).\n`);
     }
     if (skippedCrossSource > 0) {
-      console.log(`Skipped ${skippedCrossSource} cross-source candidate(s) — target exists only in another source. Enable with \`gbrain config set link_resolution.cross_source true\` — see docs/architecture/brains-and-sources.md (#2589).`);
+      process.stderr.write(`Skipped ${skippedCrossSource} cross-source candidate(s) — target exists only in another source. Enable with \`gbrain config set link_resolution.cross_source true\` — see docs/architecture/brains-and-sources.md (#2589).\n`);
     }
     if (includeFrontmatter && unresolved.length > 0) {
       // Top-20 preview of unresolvable frontmatter names so the user can
@@ -2149,12 +2152,13 @@ export async function extractStaleFromDB(
   const staleRemaining = await engine.countStalePagesForExtraction({ sourceId: sourceIdFilter, versionTs });
 
   if (!jsonMode) {
-    console.log(`Extract --stale: ${linksCreated} link(s) + ${timelineCreated} timeline entr(ies) from ${pagesProcessed} page(s).`);
+    // Stderr: progress/diagnostics, never JSON-consumer data.
+    process.stderr.write(`Extract --stale: ${linksCreated} link(s) + ${timelineCreated} timeline entr(ies) from ${pagesProcessed} page(s).\n`);
     if (skippedMissingTarget > 0) {
-      console.log(`Skipped ${skippedMissingTarget} candidate(s) whose target page doesn't exist (references to non-pages are never persisted).`);
+      process.stderr.write(`Skipped ${skippedMissingTarget} candidate(s) whose target page doesn't exist (references to non-pages are never persisted).\n`);
     }
     if (skippedCrossSource > 0) {
-      console.log(`Skipped ${skippedCrossSource} cross-source candidate(s) — target exists only in another source. Enable with \`gbrain config set link_resolution.cross_source true\`, then run \`gbrain extract links --source db\` — a --stale re-run will NOT revisit these pages (their extraction watermark is already stamped) — see docs/architecture/brains-and-sources.md (#2589).`);
+      process.stderr.write(`Skipped ${skippedCrossSource} cross-source candidate(s) — target exists only in another source. Enable with \`gbrain config set link_resolution.cross_source true\`, then run \`gbrain extract links --source db\` — a --stale re-run will NOT revisit these pages (their extraction watermark is already stamped) — see docs/architecture/brains-and-sources.md (#2589).\n`);
     }
     if (budgetHit && staleRemaining > 0) {
       console.log(`Time budget reached — ${staleRemaining} page(s) still stale. Re-run 'gbrain extract --stale' (or pass --catch-up) to continue.`);
