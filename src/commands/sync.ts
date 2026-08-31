@@ -2132,15 +2132,18 @@ async function performSyncInner(engine: BrainEngine, opts: SyncOpts): Promise<Sy
 
   // Dry run
   if (opts.dryRun) {
-    slog(`Sync dry run: ${lastCommit.slice(0, 8)}..${headCommit.slice(0, 8)}`);
-    if (filtered.added.length) slog(`  Added: ${filtered.added.join(', ')}`);
-    if (filtered.modified.length) slog(`  Modified: ${filtered.modified.join(', ')}`);
-    if (filtered.deleted.length) slog(`  Deleted: ${filtered.deleted.join(', ')}`);
-    if (filtered.renamed.length) slog(`  Renamed: ${filtered.renamed.map(r => `${r.from} -> ${r.to}`).join(', ')}`);
+    // Stderr (not stdout): dry-run diff summary is operator-facing progress,
+    // never `--json` consumer data. Structured output goes through the
+    // returned SyncResult, not free-form log lines.
+    serr(`Sync dry run: ${lastCommit.slice(0, 8)}..${headCommit.slice(0, 8)}`);
+    if (filtered.added.length) serr(`  Added: ${filtered.added.join(', ')}`);
+    if (filtered.modified.length) serr(`  Modified: ${filtered.modified.join(', ')}`);
+    if (filtered.deleted.length) serr(`  Deleted: ${filtered.deleted.join(', ')}`);
+    if (filtered.renamed.length) serr(`  Renamed: ${filtered.renamed.map(r => `${r.from} -> ${r.to}`).join(', ')}`);
     if (malformedSkipped.length) {
-      slog(`  Skipped (malformed filename — brackets/control chars; rename to import): ${malformedSkipped.map(sanitizePathForDisplay).join(', ')}`);
+      serr(`  Skipped (malformed filename — brackets/control chars; rename to import): ${malformedSkipped.map(sanitizePathForDisplay).join(', ')}`);
     }
-    if (totalChanges === 0) slog(`  No syncable changes.`);
+    if (totalChanges === 0) serr(`  No syncable changes.`);
     return {
       status: 'dry_run',
       malformedSkipped: malformedSkipped.length,
@@ -2281,7 +2284,9 @@ async function performSyncInner(engine: BrainEngine, opts: SyncOpts): Promise<Sy
 
   const noEmbed = opts.noEmbed || totalChanges > 100;
   if (totalChanges > 100) {
-    slog(`Large sync (${totalChanges} files). Importing text, deferring embeddings.`);
+    // Stderr (not stdout): progress/diagnostics never pollute `--json` output.
+    // See src/commands/dream.ts's drain adapter for the same discipline.
+    serr(`Large sync (${totalChanges} files). Importing text, deferring embeddings.`);
   }
 
   // v0.42.x (#1794): we have real work — persist the PIN now so a crash before
@@ -3749,7 +3754,8 @@ async function performSyncInner(engine: BrainEngine, opts: SyncOpts): Promise<Sy
       // stale sweep — never trust queue.add's row blind.
       if (isLiveSweep(job)) queuedJobId = job.id;
     } catch { /* best-effort — hint below still tells the operator */ }
-    slog(
+    // Stderr: operator hint, never JSON-consumer data.
+    serr(
       `  Large sync: deferring link/timeline extraction` +
       (queuedJobId != null
         ? ` — queued stale-sweep job #${queuedJobId} (source: ${opts.sourceId ?? 'default'}); a running jobs worker will consume it.`
@@ -3765,7 +3771,8 @@ async function performSyncInner(engine: BrainEngine, opts: SyncOpts): Promise<Sy
       const linksCreated = await extractLinksForSlugs(engine, gitContextRoot, pagesAffected, extractOpts);
       const timelineCreated = await extractTimelineForSlugs(engine, gitContextRoot, pagesAffected, extractOpts);
       if (linksCreated > 0 || timelineCreated > 0) {
-        slog(`  Extracted: ${linksCreated} links, ${timelineCreated} timeline entries`);
+        // Stderr: progress line, never JSON-consumer data.
+        serr(`  Extracted: ${linksCreated} links, ${timelineCreated} timeline entries`);
       }
       // v0.42.7 (#1696, CDX-6): stamp the links_extracted_at watermark for the
       // pages we just extracted, AFTER the import set their updated_at, so
@@ -3854,7 +3861,8 @@ async function performSyncInner(engine: BrainEngine, opts: SyncOpts): Promise<Sy
       // Other errors stay best-effort — rate limits, transient network.
     }
   } else if (noEmbed || totalChanges > 100) {
-    slog(`Text imported. Run 'gbrain embed --stale' to generate embeddings.`);
+    // Stderr (not stdout): operator hint, never `--json` data.
+    serr(`Text imported. Run 'gbrain embed --stale' to generate embeddings.`);
   }
 
   if (malformedSkipped.length > 0) {
